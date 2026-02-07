@@ -95,7 +95,7 @@ export class PostsService {
 
     const plainText = stripHtml(data.content);
     const group = crypto.randomUUID();
-    const createdPosts = [];
+    const createdPosts: any[] = [];
 
     for (const integrationId of data.integrationIds) {
       // Verify integration belongs to the organization
@@ -346,7 +346,7 @@ export class PostsService {
     postIds: string[],
     action: 'APPROVED' | 'REJECTED' | 'REGENERATE',
   ) {
-    const results = [];
+    const results: any[] = [];
 
     for (const postId of postIds) {
       try {
