@@ -2,6 +2,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Button } from '@/components/ui/Button';
 import { PageSpinner } from '@/components/ui/Spinner';
 import CalendarGrid from '@/components/calendar/CalendarGrid';
@@ -187,6 +189,7 @@ export function CalendarPage() {
   if (isLoading && posts.length === 0) return <PageSpinner />;
 
   return (
+    <DndProvider backend={HTML5Backend}>
     <div className="flex h-full">
       {/* Filter sidebar */}
       {showFilters && (
@@ -249,5 +252,6 @@ export function CalendarPage() {
         onDelete={handleDeletePost}
       />
     </div>
+    </DndProvider>
   );
 }
