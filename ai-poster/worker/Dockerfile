@@ -16,7 +16,7 @@ COPY shared/ shared/
 COPY worker/ worker/
 COPY prisma/ prisma/
 COPY tsconfig.base.json ./
-RUN ./worker/node_modules/.bin/prisma generate --schema=prisma/schema.prisma
+RUN ./node_modules/.bin/prisma generate --schema=prisma/schema.prisma
 RUN pnpm --filter worker build
 
 # ── Production image ──
