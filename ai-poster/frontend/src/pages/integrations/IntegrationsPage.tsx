@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Plug2,
@@ -34,9 +34,26 @@ const availablePlatforms = Object.values(Platform).map((p) => ({
 
 export function IntegrationsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { integrations, isLoading, mutate } = useIntegrations();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
+
+  // Handle OAuth redirect results
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+
+    if (connected) {
+      const displayName = PLATFORM_DISPLAY_NAMES[connected as Platform] || connected;
+      toast.success(`${displayName} connected successfully!`);
+      mutate(); // Refresh integrations list
+      setSearchParams({}, { replace: true }); // Clean URL
+    } else if (error) {
+      toast.error(`Connection failed: ${error}`);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, mutate]);
 
   const handleConnect = async (platform: Platform) => {
     setConnecting(platform);
