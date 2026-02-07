@@ -109,7 +109,8 @@ services:
     volumes:
       - ./nginx-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx-proxy/default.conf:/etc/nginx/templates/default.conf.template:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./nginx-proxy/entrypoint.sh:/entrypoint.sh:ro
+      - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot:ro
     environment:
       APP_DOMAIN: ${APP_DOMAIN:-localhost}
@@ -117,7 +118,7 @@ services:
       - frontend
     networks:
       - ai-poster-net
-    entrypoint: /bin/sh -c "envsubst '$$APP_DOMAIN' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+    entrypoint: /entrypoint.sh
 
   # ─── Let's Encrypt Certificate Management ───
   # Used by init-ssl.sh for initial cert, and renew-ssl.sh for renewal
