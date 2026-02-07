@@ -87,6 +87,7 @@ docker compose -f docker-compose.prod.yml --profile certbot run --rm certbot cer
   --email "$EMAIL" \
   --agree-tos \
   --no-eff-email \
+  --cert-name "$DOMAIN" \
   --force-renewal \
   -d "$DOMAIN"
 
