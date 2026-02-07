@@ -94,9 +94,52 @@ export class IntegrationsService {
     });
   }
 
+  /**
+   * Retrieve per-user platform credentials, falling back to env vars.
+   */
+  private async getClientCredentials(
+    userId: string,
+    organizationId: string,
+    platform: string,
+  ): Promise<{ clientId: string; clientSecret?: string }> {
+    // 1. Try per-user credentials from database
+    const userCred = await this.prisma.userPlatformCredential.findUnique({
+      where: {
+        userId_organizationId_platform: {
+          userId,
+          organizationId,
+          platform: platform as any,
+        },
+      },
+    });
+
+    if (userCred && userCred.isActive) {
+      const creds = userCred.credentials as Record<string, string>;
+      if (creds.clientId) {
+        return {
+          clientId: creds.clientId,
+          clientSecret: creds.clientSecret,
+        };
+      }
+    }
+
+    // 2. Fallback to environment variables
+    const envClientId = this.configService.get<string>(`${platform}_CLIENT_ID`);
+    const envClientSecret = this.configService.get<string>(`${platform}_CLIENT_SECRET`);
+
+    if (envClientId) {
+      return { clientId: envClientId, clientSecret: envClientSecret };
+    }
+
+    throw new BadRequestException(
+      `No credentials configured for ${platform}. Please add your API credentials in Settings > Credentials.`,
+    );
+  }
+
   async getOAuthUrl(
     organizationId: string,
     platform: string,
+    userId?: string,
   ): Promise<{ url: string; platform: string }> {
     const normalizedPlatform = platform.toUpperCase();
     const config = OAUTH_CONFIG[normalizedPlatform];
@@ -111,10 +154,19 @@ export class IntegrationsService {
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
     const redirectUri = `${backendUrl}/api/integrations/callback/${normalizedPlatform}`;
 
-    const clientId =
-      this.configService.get<string>(
-        `${normalizedPlatform}_CLIENT_ID`,
-      ) || 'PLACEHOLDER_CLIENT_ID';
+    let clientId: string;
+
+    if (userId) {
+      // Use per-user credentials
+      const creds = await this.getClientCredentials(userId, organizationId, normalizedPlatform);
+      clientId = creds.clientId;
+    } else {
+      // Legacy fallback: env var only
+      clientId =
+        this.configService.get<string>(
+          `${normalizedPlatform}_CLIENT_ID`,
+        ) || 'PLACEHOLDER_CLIENT_ID';
+    }
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -134,6 +186,7 @@ export class IntegrationsService {
     organizationId: string,
     platform: string,
     code: string,
+    userId?: string,
   ) {
     const normalizedPlatform = platform.toUpperCase();
 
@@ -142,11 +195,23 @@ export class IntegrationsService {
     }
 
     // In production, this would:
-    // 1. Exchange the authorization code for an access token
+    // 1. Exchange the authorization code for an access token using per-user credentials
     // 2. Fetch the user's profile from the platform
     // 3. Store the tokens securely (encrypted)
     //
-    // Placeholder implementation creates a test integration:
+    // Per-user credentials lookup for token exchange:
+    let clientSecret: string | undefined;
+    if (userId) {
+      try {
+        const creds = await this.getClientCredentials(userId, organizationId, normalizedPlatform);
+        clientSecret = creds.clientSecret;
+        this.logger.log(`Using per-user credentials for ${normalizedPlatform} token exchange`);
+      } catch {
+        this.logger.warn(`No per-user credentials for ${normalizedPlatform}, using env fallback`);
+        clientSecret = this.configService.get<string>(`${normalizedPlatform}_CLIENT_SECRET`);
+      }
+    }
+
     this.logger.log(
       `OAuth callback for ${normalizedPlatform} with code: ${code.substring(0, 8)}...`,
     );
@@ -163,6 +228,7 @@ export class IntegrationsService {
         metadata: {
           connectedVia: 'oauth',
           connectedAt: new Date().toISOString(),
+          usedPerUserCredentials: !!userId,
         },
       },
       include: { platformProfile: true },

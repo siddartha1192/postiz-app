@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Plug2,
@@ -7,6 +8,8 @@ import {
   ExternalLink,
   Trash2,
   MoreVertical,
+  BookOpen,
+  Key,
 } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +33,7 @@ const availablePlatforms = Object.values(Platform).map((p) => ({
 }));
 
 export function IntegrationsPage() {
+  const navigate = useNavigate();
   const { integrations, isLoading, mutate } = useIntegrations();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -85,12 +89,30 @@ export function IntegrationsPage() {
             Connect and manage your social media channels.
           </p>
         </div>
-        <Button
-          icon={<Plus className="h-4 w-4" />}
-          onClick={() => setConnectModalOpen(true)}
-        >
-          Connect Channel
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<BookOpen className="h-4 w-4" />}
+            onClick={() => navigate('/integrations/guide')}
+          >
+            Setup Guide
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Key className="h-4 w-4" />}
+            onClick={() => navigate('/settings?tab=credentials')}
+          >
+            Credentials
+          </Button>
+          <Button
+            icon={<Plus className="h-4 w-4" />}
+            onClick={() => setConnectModalOpen(true)}
+          >
+            Connect Channel
+          </Button>
+        </div>
       </div>
 
       {integrations.length === 0 ? (

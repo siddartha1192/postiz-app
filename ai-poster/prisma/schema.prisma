@@ -156,6 +156,7 @@ model User {
   templates     Template[]
   approvals     PostApproval[]
   notifications Notification[]
+  platformCredentials UserPlatformCredential[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -176,6 +177,7 @@ model Organization {
   calendarSlots    CalendarSlot[]
   platformProfiles PlatformProfile[]
   notifications    Notification[]
+  platformCredentials UserPlatformCredential[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -594,4 +596,24 @@ model Notification {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+}
+
+// ─── USER PLATFORM CREDENTIALS (per-user OAuth app keys for each platform) ───
+
+model UserPlatformCredential {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  platform       Platform
+  credentials    Json     // Platform-specific credentials (clientId, clientSecret, apiKey, etc.)
+  isActive       Boolean  @default(true)
+  label          String?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, organizationId, platform])
 }

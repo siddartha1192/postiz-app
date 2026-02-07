@@ -21,6 +21,7 @@ import { PendingApprovalsPage } from '@/pages/posts/PendingApprovalsPage';
 import { NewPostPage } from '@/pages/posts/NewPostPage';
 import { PostDetailPage } from '@/pages/posts/PostDetailPage';
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage';
+import { IntegrationGuidePage } from '@/pages/integrations/IntegrationGuidePage';
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage';
 import { MediaPage } from '@/pages/media/MediaPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
@@ -84,6 +85,10 @@ const routes: RouteObject[] = [
       {
         path: '/integrations',
         element: <IntegrationsPage />,
+      },
+      {
+        path: '/integrations/guide',
+        element: <IntegrationGuidePage />,
       },
       {
         path: '/analytics',

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -24,11 +25,21 @@ export class IntegrationsController {
   }
 
   @Post('connect/:platform')
-  async connect(
+  async connectByParam(
     @CurrentUser() user: AuthUser,
     @Param('platform') platform: string,
   ) {
-    return this.integrationsService.getOAuthUrl(user.organizationId, platform);
+    const result = await this.integrationsService.getOAuthUrl(user.organizationId, platform, user.id);
+    return { authUrl: result.url };
+  }
+
+  @Post('connect')
+  async connect(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { platform: string },
+  ) {
+    const result = await this.integrationsService.getOAuthUrl(user.organizationId, body.platform, user.id);
+    return { authUrl: result.url };
   }
 
   @Get('callback/:platform')
@@ -42,6 +53,7 @@ export class IntegrationsController {
       user.organizationId,
       platform,
       code,
+      user.id,
     );
   }
 
@@ -52,6 +64,20 @@ export class IntegrationsController {
     @Body() body: { name?: string; disabled?: boolean; metadata?: Record<string, any> },
   ) {
     return this.integrationsService.update(user.organizationId, id, body);
+  }
+
+  @Patch(':id')
+  async patch(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: { name?: string; disabled?: boolean; isActive?: boolean; metadata?: Record<string, any> },
+  ) {
+    const data: any = {};
+    if (body.name !== undefined) data.name = body.name;
+    if (body.disabled !== undefined) data.disabled = body.disabled;
+    if (body.isActive !== undefined) data.disabled = !body.isActive;
+    if (body.metadata !== undefined) data.metadata = body.metadata;
+    return this.integrationsService.update(user.organizationId, id, data);
   }
 
   @Delete(':id')
