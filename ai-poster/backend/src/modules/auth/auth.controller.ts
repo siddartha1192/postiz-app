@@ -64,11 +64,11 @@ export class AuthController {
   }
 
   private setAuthCookie(res: Response, token: string) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const useSecure = process.env.COOKIE_SECURE === 'true';
     res.cookie('auth', token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: useSecure,
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
