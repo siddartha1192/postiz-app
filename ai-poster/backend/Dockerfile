@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 # ── Generate Prisma client ──
 FROM deps AS prisma
 COPY prisma/ prisma/
-RUN pnpm dlx prisma generate --schema=prisma/schema.prisma
+RUN pnpm dlx prisma@6 generate --schema=prisma/schema.prisma
 
 # ── Build ──
 FROM prisma AS build
