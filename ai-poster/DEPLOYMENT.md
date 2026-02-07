@@ -88,7 +88,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 ```bash
 # Run Prisma migrations inside the backend container
-docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy --schema=/app/prisma/schema.prisma
+docker compose -f docker-compose.prod.yml exec backend pnpm dlx prisma migrate deploy --schema=/app/prisma/schema.prisma
 ```
 
 ### Step 5: Verify
@@ -187,7 +187,7 @@ pnpm prisma:generate
 
 # Run database migrations
 DATABASE_URL="postgresql://ai_poster:YOUR_STRONG_PASSWORD@localhost:5432/ai_poster?schema=public" \
-  npx prisma migrate deploy --schema=prisma/schema.prisma
+  pnpm dlx prisma migrate deploy --schema=prisma/schema.prisma
 ```
 
 ### Step 5: Create environment file
@@ -292,11 +292,11 @@ For a fresh database, run migrations to create all tables:
 ```bash
 # Docker
 docker compose -f docker-compose.prod.yml exec backend \
-  npx prisma migrate deploy --schema=/app/prisma/schema.prisma
+  pnpm dlx prisma migrate deploy --schema=/app/prisma/schema.prisma
 
 # Manual
 cd /opt/ai-poster/ai-poster
-npx prisma migrate deploy --schema=prisma/schema.prisma
+pnpm dlx prisma migrate deploy --schema=prisma/schema.prisma
 ```
 
 ### Creating the First Migration
@@ -305,7 +305,7 @@ If no migration files exist yet, create the initial migration:
 
 ```bash
 # From the ai-poster/ directory
-npx prisma migrate dev --name init --schema=prisma/schema.prisma
+pnpm dlx prisma migrate dev --name init --schema=prisma/schema.prisma
 ```
 
 This creates the migration SQL in `prisma/migrations/` and applies it.
@@ -677,7 +677,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 # Run any new migrations
 docker compose -f docker-compose.prod.yml exec backend \
-  npx prisma migrate deploy --schema=/app/prisma/schema.prisma
+  pnpm dlx prisma migrate deploy --schema=/app/prisma/schema.prisma
 ```
 
 ### Manual Deployment
@@ -697,7 +697,7 @@ pnpm install
 pnpm prisma:generate
 
 # Run migrations
-npx prisma migrate deploy --schema=prisma/schema.prisma
+pnpm dlx prisma migrate deploy --schema=prisma/schema.prisma
 
 # Rebuild
 pnpm build
@@ -765,13 +765,13 @@ docker compose -f docker-compose.prod.yml exec redis redis-cli -a YOUR_REDIS_PAS
 
 ```bash
 # Check migration status
-npx prisma migrate status --schema=prisma/schema.prisma
+pnpm dlx prisma migrate status --schema=prisma/schema.prisma
 
 # Reset database (WARNING: deletes all data)
-npx prisma migrate reset --schema=prisma/schema.prisma
+pnpm dlx prisma migrate reset --schema=prisma/schema.prisma
 
 # Force apply pending migrations
-npx prisma migrate deploy --schema=prisma/schema.prisma
+pnpm dlx prisma migrate deploy --schema=prisma/schema.prisma
 ```
 
 ### File upload issues
