@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 
-import { PrismaService } from '../worker.module';
+import { PrismaService } from '../database.module';
 import {
   ANALYTICS_SYNC_QUEUE,
   AnalyticsSyncJobData,

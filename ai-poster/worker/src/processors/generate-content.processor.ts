@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 
-import { PrismaService } from '../worker.module';
+import { PrismaService } from '../database.module';
 import {
   GENERATE_CONTENT_QUEUE,
   GenerateContentJobData,
