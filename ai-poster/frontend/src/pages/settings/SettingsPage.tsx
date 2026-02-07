@@ -13,6 +13,9 @@ import {
   ChevronRight,
   ExternalLink,
   Zap,
+  Copy,
+  Link2,
+  Webhook,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -121,6 +124,51 @@ const PLATFORM_CREDENTIAL_FIELDS: Record<string, CredentialField[]> = {
     { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Dribbble Client Secret' },
   ],
 };
+
+// Platforms that require webhook configuration
+const WEBHOOK_PLATFORMS: Record<string, { path: string; verifyTokenEnv: string; defaultVerifyToken: string }> = {
+  FACEBOOK: {
+    path: '/api/integrations/webhooks/facebook',
+    verifyTokenEnv: 'FACEBOOK_WEBHOOK_VERIFY_TOKEN',
+    defaultVerifyToken: 'postiz_webhook_verify',
+  },
+};
+
+// Helper to get the base URL from window.location
+function getBaseUrl(): string {
+  return `${window.location.protocol}//${window.location.host}`;
+}
+
+function CopyableUrl({ label, url, icon }: { label: string; url: string; icon?: React.ReactNode }) {
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(url).then(
+      () => toast.success(`${label} copied to clipboard`),
+      () => toast.error('Failed to copy'),
+    );
+  };
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+      <div className="mt-0.5 text-blue-500">
+        {icon || <Link2 className="h-4 w-4" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-blue-700">{label}</p>
+        <p className="mt-0.5 break-all font-mono text-xs text-blue-600">
+          {url}
+        </p>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="mt-0.5 rounded p-1 text-blue-400 hover:bg-blue-100 hover:text-blue-600"
+        title="Copy to clipboard"
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
 
 const ALL_PLATFORMS = Object.values(Platform);
 
@@ -657,6 +705,33 @@ export function SettingsPage() {
 
                   {isExpanded && (
                     <CardBody className="space-y-4 border-t border-gray-50">
+                      {/* Show OAuth Redirect URL and Webhook URL */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                          URLs to configure in your {displayName} developer app
+                        </p>
+                        <CopyableUrl
+                          label="OAuth Redirect URI"
+                          url={`${getBaseUrl()}/api/integrations/callback/${platform}`}
+                        />
+                        {WEBHOOK_PLATFORMS[platform] && (
+                          <>
+                            <CopyableUrl
+                              label="Webhook URL"
+                              url={`${getBaseUrl()}${WEBHOOK_PLATFORMS[platform].path}`}
+                              icon={<Webhook className="h-4 w-4" />}
+                            />
+                            <CopyableUrl
+                              label="Webhook Verify Token"
+                              url={WEBHOOK_PLATFORMS[platform].defaultVerifyToken}
+                              icon={<Key className="h-4 w-4" />}
+                            />
+                          </>
+                        )}
+                      </div>
+
+                      <hr className="border-gray-100" />
+
                       {fields.map((field) => (
                         <Input
                           key={field.key}
