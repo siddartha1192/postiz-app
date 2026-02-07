@@ -36,53 +36,75 @@ echo "  Email: $EMAIL"
 echo "================================================"
 
 # Create required directories
-echo "[1/5] Creating directories..."
-mkdir -p ./certbot/conf
+echo "[1/6] Creating directories..."
+mkdir -p ./certbot/conf/live/$DOMAIN
+mkdir -p ./certbot/conf/archive/$DOMAIN
 mkdir -p ./certbot/www
 
-# Check if certificate already exists
-if [ -d "./certbot/conf/live/$DOMAIN" ]; then
-  echo "Certificate for $DOMAIN already exists."
-  read -p "Do you want to renew it? (y/N) " -n 1 -r
+# Check if real certificate already exists
+if [ -f "./certbot/conf/live/$DOMAIN/fullchain.pem" ] && \
+   ! openssl x509 -in "./certbot/conf/live/$DOMAIN/fullchain.pem" -noout -issuer 2>/dev/null | grep -q "CN = $DOMAIN"; then
+  echo "A certificate for $DOMAIN already exists."
+  read -p "Do you want to replace it? (y/N) " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Skipping. Use 'docker compose -f docker-compose.prod.yml restart nginx-proxy' to apply."
+    echo "Skipping. Restart nginx-proxy to apply existing cert."
     exit 0
   fi
 fi
 
 # Step 1: Create a temporary self-signed certificate so nginx can start
-echo "[2/5] Creating temporary self-signed certificate..."
-mkdir -p ./certbot/conf/live/$DOMAIN
+echo "[2/6] Creating temporary self-signed certificate..."
 openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
   -keyout "./certbot/conf/live/$DOMAIN/privkey.pem" \
   -out "./certbot/conf/live/$DOMAIN/fullchain.pem" \
   -subj "/CN=$DOMAIN" 2>/dev/null
 
-echo "[3/5] Starting nginx-proxy with temporary certificate..."
 # Export for docker-compose
 export APP_DOMAIN=$DOMAIN
 export CERTBOT_EMAIL=$EMAIL
 
-docker compose -f docker-compose.prod.yml up -d nginx-proxy
+# Step 2: Build and start everything
+echo "[3/6] Starting services..."
+docker compose -f docker-compose.prod.yml up -d --build
 
 # Wait for nginx to be ready
-echo "Waiting for nginx to start..."
-sleep 5
+echo "[4/6] Waiting for nginx to be ready..."
+for i in $(seq 1 15); do
+  if curl -s -o /dev/null -w "%{http_code}" http://localhost/.well-known/acme-challenge/test 2>/dev/null | grep -q "404\|301\|200"; then
+    echo "Nginx is ready!"
+    break
+  fi
+  echo "  Waiting... attempt $i/15"
+  sleep 3
+done
 
-# Step 2: Request real certificate from Let's Encrypt
-echo "[4/5] Requesting Let's Encrypt certificate..."
+# Step 3: Request real certificate from Let's Encrypt
+echo "[5/6] Requesting Let's Encrypt certificate for $DOMAIN..."
 docker compose -f docker-compose.prod.yml --profile certbot run --rm certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "$EMAIL" \
   --agree-tos \
   --no-eff-email \
+  --cert-name "$DOMAIN" \
+  --force-renewal \
   -d "$DOMAIN"
 
-# Step 3: Reload nginx with real certificate
-echo "[5/5] Reloading nginx with real certificate..."
-docker compose -f docker-compose.prod.yml exec nginx-proxy nginx -s reload
+# Step 4: Restart nginx to pick up the real certificate
+echo "[6/6] Restarting nginx-proxy with real certificate..."
+docker compose -f docker-compose.prod.yml restart nginx-proxy
+
+# Wait and verify
+sleep 3
+echo ""
+echo "Verifying SSL..."
+if curl -sI "https://$DOMAIN" 2>/dev/null | head -1 | grep -q "200\|301\|302"; then
+  echo "  HTTPS is working!"
+else
+  echo "  Note: HTTPS verification via curl failed (may still work in browser)."
+  echo "  Check: docker compose -f docker-compose.prod.yml logs nginx-proxy"
+fi
 
 echo ""
 echo "================================================"
@@ -90,7 +112,8 @@ echo "  SSL setup complete!"
 echo "  Your site is now available at:"
 echo "    https://$DOMAIN"
 echo ""
-echo "  Certificate will auto-renew via certbot."
+echo "  To auto-renew, add to crontab:"
+echo "    0 */12 * * * $(pwd)/renew-ssl.sh"
 echo ""
 echo "  Make sure your .env has:"
 echo "    APP_DOMAIN=$DOMAIN"

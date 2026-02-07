@@ -9,5 +9,7 @@ cd "$(dirname "$0")"
 
 echo "[$(date)] Checking SSL certificate renewal..."
 docker compose -f docker-compose.prod.yml --profile certbot run --rm certbot renew --quiet
-docker compose -f docker-compose.prod.yml exec nginx-proxy nginx -s reload
+
+# Restart nginx-proxy to copy renewed certs via entrypoint
+docker compose -f docker-compose.prod.yml restart nginx-proxy
 echo "[$(date)] SSL renewal check complete."
