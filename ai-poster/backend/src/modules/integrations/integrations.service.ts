@@ -7,6 +7,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database.module';
 
+interface TokenExchangeResult {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  profileId?: string;
+  profileName?: string;
+  profilePicture?: string;
+}
+
 /** OAuth configuration per platform (client IDs and scopes would come from env vars) */
 const OAUTH_CONFIG: Record<
   string,
@@ -136,6 +145,25 @@ export class IntegrationsService {
     );
   }
 
+  /**
+   * Get the public-facing base URL for OAuth redirects.
+   * Uses FRONTEND_URL (the public domain where nginx proxies /api/ to backend)
+   * since OAuth callbacks need to hit the public URL, not the internal container URL.
+   */
+  private getPublicBaseUrl(): string {
+    // FRONTEND_URL is the public domain (e.g., http://climcrm.com)
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    if (frontendUrl) {
+      return frontendUrl.replace(/\/$/, '');
+    }
+    // Fallback to BACKEND_URL if set
+    const backendUrl = this.configService.get<string>('BACKEND_URL');
+    if (backendUrl) {
+      return backendUrl.replace(/\/$/, '');
+    }
+    return 'http://localhost:3001';
+  }
+
   async getOAuthUrl(
     organizationId: string,
     platform: string,
@@ -150,9 +178,8 @@ export class IntegrationsService {
       );
     }
 
-    const backendUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
-    const redirectUri = `${backendUrl}/api/integrations/callback/${normalizedPlatform}`;
+    const publicBaseUrl = this.getPublicBaseUrl();
+    const redirectUri = `${publicBaseUrl}/api/integrations/callback/${normalizedPlatform}`;
 
     let clientId: string;
 
@@ -182,6 +209,134 @@ export class IntegrationsService {
     };
   }
 
+  /**
+   * Exchange OAuth code for token. Platform-specific implementations.
+   */
+  private async exchangeCodeForToken(
+    platform: string,
+    code: string,
+    clientId: string,
+    clientSecret: string,
+    redirectUri: string,
+  ): Promise<TokenExchangeResult> {
+    switch (platform) {
+      case 'FACEBOOK':
+      case 'INSTAGRAM': {
+        // Exchange code for short-lived token
+        const tokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
+        tokenUrl.searchParams.set('client_id', clientId);
+        tokenUrl.searchParams.set('client_secret', clientSecret);
+        tokenUrl.searchParams.set('redirect_uri', redirectUri);
+        tokenUrl.searchParams.set('code', code);
+
+        const tokenRes = await fetch(tokenUrl.toString());
+        const tokenData = await tokenRes.json() as any;
+
+        if (tokenData.error) {
+          this.logger.error(`Facebook token exchange error: ${JSON.stringify(tokenData.error)}`);
+          throw new BadRequestException(
+            `Facebook auth failed: ${tokenData.error.message || 'Token exchange failed'}`,
+          );
+        }
+
+        // Exchange short-lived token for long-lived token
+        const longTokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
+        longTokenUrl.searchParams.set('grant_type', 'fb_exchange_token');
+        longTokenUrl.searchParams.set('client_id', clientId);
+        longTokenUrl.searchParams.set('client_secret', clientSecret);
+        longTokenUrl.searchParams.set('fb_exchange_token', tokenData.access_token);
+
+        const longTokenRes = await fetch(longTokenUrl.toString());
+        const longTokenData = await longTokenRes.json() as any;
+
+        const accessToken = longTokenData.access_token || tokenData.access_token;
+        const expiresIn = longTokenData.expires_in || tokenData.expires_in || 5184000;
+
+        // Get user profile
+        const meRes = await fetch(
+          `https://graph.facebook.com/v18.0/me?fields=id,name,picture&access_token=${accessToken}`,
+        );
+        const meData = await meRes.json() as any;
+
+        return {
+          accessToken,
+          expiresIn,
+          profileId: meData.id,
+          profileName: meData.name,
+          profilePicture: meData.picture?.data?.url,
+        };
+      }
+
+      case 'LINKEDIN':
+      case 'LINKEDIN_PAGE': {
+        const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+          }),
+        });
+        const tokenData = await tokenRes.json() as any;
+
+        if (tokenData.error) {
+          throw new BadRequestException(
+            `LinkedIn auth failed: ${tokenData.error_description || tokenData.error}`,
+          );
+        }
+
+        return {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresIn: tokenData.expires_in,
+        };
+      }
+
+      case 'TWITTER': {
+        const tokenRes = await fetch('https://api.twitter.com/2/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+          },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: redirectUri,
+            code_verifier: 'challenge', // Simplified — production needs PKCE
+          }),
+        });
+        const tokenData = await tokenRes.json() as any;
+
+        if (tokenData.error) {
+          throw new BadRequestException(
+            `Twitter auth failed: ${tokenData.error_description || tokenData.error}`,
+          );
+        }
+
+        return {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresIn: tokenData.expires_in,
+        };
+      }
+
+      default: {
+        // Generic OAuth2 authorization_code flow
+        this.logger.warn(
+          `No specific token exchange for ${platform}, using placeholder`,
+        );
+        return {
+          accessToken: `pending_token_${code.substring(0, 16)}`,
+          expiresIn: 3600,
+        };
+      }
+    }
+  }
+
   async handleOAuthCallback(
     organizationId: string,
     platform: string,
@@ -194,37 +349,62 @@ export class IntegrationsService {
       throw new BadRequestException('Authorization code is required');
     }
 
-    // In production, this would:
-    // 1. Exchange the authorization code for an access token using per-user credentials
-    // 2. Fetch the user's profile from the platform
-    // 3. Store the tokens securely (encrypted)
-    //
-    // Per-user credentials lookup for token exchange:
-    let clientSecret: string | undefined;
-    if (userId) {
-      try {
-        const creds = await this.getClientCredentials(userId, organizationId, normalizedPlatform);
-        clientSecret = creds.clientSecret;
-        this.logger.log(`Using per-user credentials for ${normalizedPlatform} token exchange`);
-      } catch {
-        this.logger.warn(`No per-user credentials for ${normalizedPlatform}, using env fallback`);
-        clientSecret = this.configService.get<string>(`${normalizedPlatform}_CLIENT_SECRET`);
-      }
-    }
-
     this.logger.log(
       `OAuth callback for ${normalizedPlatform} with code: ${code.substring(0, 8)}...`,
     );
+
+    // Get credentials for token exchange
+    let clientId: string;
+    let clientSecret: string;
+
+    if (userId) {
+      try {
+        const creds = await this.getClientCredentials(userId, organizationId, normalizedPlatform);
+        clientId = creds.clientId;
+        clientSecret = creds.clientSecret || '';
+        this.logger.log(`Using per-user credentials for ${normalizedPlatform} token exchange`);
+      } catch {
+        this.logger.warn(`No per-user credentials for ${normalizedPlatform}, using env fallback`);
+        clientId = this.configService.get<string>(`${normalizedPlatform}_CLIENT_ID`) || '';
+        clientSecret = this.configService.get<string>(`${normalizedPlatform}_CLIENT_SECRET`) || '';
+      }
+    } else {
+      clientId = this.configService.get<string>(`${normalizedPlatform}_CLIENT_ID`) || '';
+      clientSecret = this.configService.get<string>(`${normalizedPlatform}_CLIENT_SECRET`) || '';
+    }
+
+    const publicBaseUrl = this.getPublicBaseUrl();
+    const redirectUri = `${publicBaseUrl}/api/integrations/callback/${normalizedPlatform}`;
+
+    // Exchange the authorization code for an access token
+    let tokenResult: TokenExchangeResult;
+    try {
+      tokenResult = await this.exchangeCodeForToken(
+        normalizedPlatform,
+        code,
+        clientId,
+        clientSecret,
+        redirectUri,
+      );
+    } catch (err) {
+      this.logger.error(`Token exchange failed for ${normalizedPlatform}: ${err}`);
+      throw err instanceof BadRequestException
+        ? err
+        : new BadRequestException(`Failed to exchange authorization code for ${normalizedPlatform}`);
+    }
 
     const integration = await this.prisma.integration.create({
       data: {
         organizationId,
         platform: normalizedPlatform as any,
-        name: `${normalizedPlatform} Account`,
-        internalId: `${normalizedPlatform.toLowerCase()}_${Date.now()}`,
-        token: `placeholder_token_${code.substring(0, 16)}`,
-        refreshToken: `placeholder_refresh_${Date.now()}`,
-        tokenExpiration: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+        name: tokenResult.profileName || `${normalizedPlatform} Account`,
+        profilePicture: tokenResult.profilePicture || null,
+        internalId: tokenResult.profileId || `${normalizedPlatform.toLowerCase()}_${Date.now()}`,
+        token: tokenResult.accessToken,
+        refreshToken: tokenResult.refreshToken || null,
+        tokenExpiration: tokenResult.expiresIn
+          ? new Date(Date.now() + tokenResult.expiresIn * 1000)
+          : new Date(Date.now() + 60 * 60 * 1000),
         metadata: {
           connectedVia: 'oauth',
           connectedAt: new Date().toISOString(),
