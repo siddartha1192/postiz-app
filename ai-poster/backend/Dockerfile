@@ -23,11 +23,9 @@ RUN pnpm --filter backend build
 FROM node:20-alpine AS production
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/backend/node_modules ./backend/node_modules
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/backend/node_modules ./backend/node_modules
 COPY --from=build /app/backend/dist ./backend/dist
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma/ prisma/
 
 RUN mkdir -p /app/uploads

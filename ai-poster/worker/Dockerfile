@@ -23,11 +23,9 @@ RUN pnpm --filter worker build
 FROM node:20-alpine AS production
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/worker/node_modules ./worker/node_modules
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/worker/node_modules ./worker/node_modules
 COPY --from=build /app/worker/dist ./worker/dist
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma/ prisma/
 
 ENV NODE_ENV=production
