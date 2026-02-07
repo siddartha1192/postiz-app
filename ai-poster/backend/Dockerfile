@@ -27,10 +27,12 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/backend/node_modules ./backend/node_modules
 COPY --from=build /app/backend/dist ./backend/dist
 COPY prisma/ prisma/
+COPY backend/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 RUN mkdir -p /app/uploads
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push --schema=prisma/schema.prisma --skip-generate && node backend/dist/backend/src/main"]
+CMD ["./entrypoint.sh"]
