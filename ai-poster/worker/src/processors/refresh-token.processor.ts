@@ -3,7 +3,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 
-import { PrismaService } from '../worker.module';
+import { PrismaService } from '../database.module';
 import {
   REFRESH_TOKEN_QUEUE,
   RefreshTokenJobData,

@@ -1,42 +1,13 @@
-import {
-  Global,
-  Module,
-  OnModuleInit,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
-import { PrismaClient } from '@prisma/client';
 
+import { DatabaseModule } from './database.module';
 import { PublishPostProcessor } from './processors/publish-post.processor';
 import { GenerateContentProcessor } from './processors/generate-content.processor';
 import { ProcessImageProcessor } from './processors/process-image.processor';
 import { RefreshTokenProcessor } from './processors/refresh-token.processor';
 import { AnalyticsSyncProcessor } from './processors/analytics-sync.processor';
-
-// ─── Inline PrismaService (same pattern as backend DatabaseModule) ───
-
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
-  async onModuleInit() {
-    await this.$connect();
-  }
-
-  async onModuleDestroy() {
-    await this.$disconnect();
-  }
-}
-
-@Global()
-@Module({
-  providers: [PrismaService],
-  exports: [PrismaService],
-})
-class DatabaseModule {}
-
-// ─── Worker Root Module ───
 
 @Module({
   imports: [
@@ -45,12 +16,25 @@ class DatabaseModule {}
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (redisUrl) {
+          const url = new URL(redisUrl);
+          return {
+            connection: {
+              host: url.hostname,
+              port: parseInt(url.port || '6379', 10),
+              password: url.password || undefined,
+            },
+          };
+        }
+        return {
+          connection: {
+            host: config.get<string>('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+          },
+        };
+      },
     }),
 
     // Register all queues

@@ -4,7 +4,7 @@ import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
-import { PrismaService } from '../worker.module';
+import { PrismaService } from '../database.module';
 import {
   PROCESS_IMAGE_QUEUE,
   ProcessImageJobData,
