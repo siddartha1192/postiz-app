@@ -123,7 +123,7 @@ export class AnalyticsSyncProcessor extends WorkerHost {
             saves: analytics.saves,
             engagementRate: analytics.engagementRate,
             reachEstimate: analytics.reachEstimate,
-            extraMetrics: analytics.extraMetrics ?? undefined,
+            extraMetrics: (analytics.extraMetrics ?? undefined) as any,
             fetchedAt: new Date(),
           },
         });
@@ -145,7 +145,7 @@ export class AnalyticsSyncProcessor extends WorkerHost {
             saves: analytics.saves,
             engagementRate: analytics.engagementRate,
             reachEstimate: analytics.reachEstimate,
-            extraMetrics: analytics.extraMetrics ?? undefined,
+            extraMetrics: (analytics.extraMetrics ?? undefined) as any,
           },
         });
 

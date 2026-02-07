@@ -32,4 +32,4 @@ COPY prisma/ prisma/
 
 ENV NODE_ENV=production
 
-CMD ["node", "worker/dist/main"]
+CMD ["node", "worker/dist/worker/src/main"]

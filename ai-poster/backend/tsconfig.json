@@ -2,13 +2,13 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "..",
     "baseUrl": "..",
     "paths": {
       "@ai-poster/shared/*": ["./shared/src/*"],
       "@ai-poster/shared": ["./shared/src"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
