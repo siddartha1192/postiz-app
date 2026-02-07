@@ -16,7 +16,7 @@ COPY shared/ shared/
 COPY backend/ backend/
 COPY prisma/ prisma/
 COPY tsconfig.base.json ./
-RUN ./backend/node_modules/.bin/prisma generate --schema=prisma/schema.prisma
+RUN ./node_modules/.bin/prisma generate --schema=prisma/schema.prisma
 RUN pnpm --filter backend build
 
 # ── Production image ──

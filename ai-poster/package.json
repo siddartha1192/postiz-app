@@ -16,6 +16,12 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write ."
   },
+  "devDependencies": {
+    "prisma": "^6.5.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0"
+  },
   "workspaces": [
     "backend",
     "frontend",
