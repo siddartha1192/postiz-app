@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   User,
   Users,
@@ -7,6 +8,11 @@ import {
   Trash2,
   Plus,
   Shield,
+  Key,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Zap,
 } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -18,12 +24,18 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchApi } from '@/lib/api';
+import { Platform } from '@ai-poster/shared';
+import {
+  PLATFORM_ICON_COLORS,
+  PLATFORM_DISPLAY_NAMES,
+} from '@/lib/constants';
 import toast from 'react-hot-toast';
 
 const settingsTabs = [
   { id: 'profile', label: 'Profile', icon: <User className="h-4 w-4" /> },
   { id: 'team', label: 'Team', icon: <Users className="h-4 w-4" /> },
   { id: 'defaults', label: 'Defaults', icon: <Settings2 className="h-4 w-4" /> },
+  { id: 'credentials', label: 'Credentials', icon: <Key className="h-4 w-4" /> },
 ];
 
 interface TeamMember {
@@ -34,9 +46,98 @@ interface TeamMember {
   avatar?: string;
 }
 
+interface CredentialField {
+  key: string;
+  label: string;
+  type: string;
+  placeholder: string;
+}
+
+interface PlatformCredentialData {
+  credentials: Record<string, string>;
+  label: string;
+  isActive: boolean;
+}
+
+const PLATFORM_CREDENTIAL_FIELDS: Record<string, CredentialField[]> = {
+  TWITTER: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Twitter API Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Twitter API Client Secret' },
+  ],
+  LINKEDIN: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your LinkedIn Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your LinkedIn Client Secret' },
+  ],
+  LINKEDIN_PAGE: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your LinkedIn Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your LinkedIn Client Secret' },
+  ],
+  FACEBOOK: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Facebook App ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Facebook App Secret' },
+  ],
+  INSTAGRAM: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Instagram App ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Instagram App Secret' },
+  ],
+  YOUTUBE: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your YouTube/Google Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your YouTube/Google Client Secret' },
+  ],
+  TIKTOK: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your TikTok Client Key' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your TikTok Client Secret' },
+  ],
+  REDDIT: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Reddit App ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Reddit App Secret' },
+  ],
+  PINTEREST: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Pinterest App ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Pinterest App Secret' },
+  ],
+  THREADS: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Threads/Meta App ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Threads/Meta App Secret' },
+  ],
+  DISCORD: [
+    { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'Your Discord Bot Token' },
+    { key: 'applicationId', label: 'Application ID', type: 'text', placeholder: 'Your Discord Application ID' },
+  ],
+  SLACK: [
+    { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'Your Slack Bot Token (xoxb-...)' },
+    { key: 'signingSecret', label: 'Signing Secret', type: 'password', placeholder: 'Your Slack Signing Secret' },
+  ],
+  MASTODON: [
+    { key: 'instanceUrl', label: 'Instance URL', type: 'text', placeholder: 'https://mastodon.social' },
+    { key: 'accessToken', label: 'Access Token', type: 'password', placeholder: 'Your Mastodon Access Token' },
+  ],
+  BLUESKY: [
+    { key: 'handle', label: 'Handle', type: 'text', placeholder: 'your-handle.bsky.social' },
+    { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'Your Bluesky App Password' },
+  ],
+  DRIBBBLE: [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Your Dribbble Client ID' },
+    { key: 'clientSecret', label: 'Client Secret', type: 'password', placeholder: 'Your Dribbble Client Secret' },
+  ],
+};
+
+const ALL_PLATFORMS = Object.values(Platform);
+
+function getPlatformAbbreviation(platform: Platform): string {
+  const name = PLATFORM_DISPLAY_NAMES[platform] || platform;
+  const words = name.replace(/[()]/g, '').split(/\s+/);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
 export function SettingsPage() {
   const { user, organization } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'profile';
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Profile state
   const [name, setName] = useState(user?.name || '');
@@ -54,6 +155,148 @@ export function SettingsPage() {
   const [defaultTimezone, setDefaultTimezone] = useState('UTC');
   const [defaultLanguage, setDefaultLanguage] = useState('en');
   const [autoApprove, setAutoApprove] = useState(false);
+
+  // Credentials state
+  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+  const [credentialValues, setCredentialValues] = useState<
+    Record<string, PlatformCredentialData>
+  >({});
+  const [savingCredential, setSavingCredential] = useState<string | null>(null);
+  const [deletingCredential, setDeletingCredential] = useState<string | null>(null);
+  const [testingCredential, setTestingCredential] = useState<string | null>(null);
+
+  const fetchCredentials = useCallback(async () => {
+    try {
+      const data = await fetchApi<
+        Record<string, { credentials: Record<string, string>; label: string; isActive: boolean }>
+      >('/platform-credentials');
+      if (data) {
+        const mapped: Record<string, PlatformCredentialData> = {};
+        for (const [platform, value] of Object.entries(data)) {
+          mapped[platform] = {
+            credentials: value.credentials || {},
+            label: value.label || '',
+            isActive: value.isActive ?? true,
+          };
+        }
+        setCredentialValues((prev) => {
+          const merged = { ...prev };
+          for (const [platform, value] of Object.entries(mapped)) {
+            merged[platform] = value;
+          }
+          return merged;
+        });
+      }
+    } catch {
+      // Silently fail on initial load - credentials may not exist yet
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'credentials') {
+      fetchCredentials();
+    }
+  }, [activeTab, fetchCredentials]);
+
+  const getCredentialData = (platform: string): PlatformCredentialData => {
+    return credentialValues[platform] || { credentials: {}, label: '', isActive: true };
+  };
+
+  const updateCredentialField = (platform: string, fieldKey: string, value: string) => {
+    setCredentialValues((prev) => {
+      const current = prev[platform] || { credentials: {}, label: '', isActive: true };
+      return {
+        ...prev,
+        [platform]: {
+          ...current,
+          credentials: {
+            ...current.credentials,
+            [fieldKey]: value,
+          },
+        },
+      };
+    });
+  };
+
+  const updateCredentialLabel = (platform: string, label: string) => {
+    setCredentialValues((prev) => {
+      const current = prev[platform] || { credentials: {}, label: '', isActive: true };
+      return {
+        ...prev,
+        [platform]: { ...current, label },
+      };
+    });
+  };
+
+  const updateCredentialActive = (platform: string, isActive: boolean) => {
+    setCredentialValues((prev) => {
+      const current = prev[platform] || { credentials: {}, label: '', isActive: true };
+      return {
+        ...prev,
+        [platform]: { ...current, isActive },
+      };
+    });
+  };
+
+  const isConfigured = (platform: string): boolean => {
+    const data = credentialValues[platform];
+    if (!data) return false;
+    const fields = PLATFORM_CREDENTIAL_FIELDS[platform] || [];
+    return fields.every((f) => !!data.credentials[f.key]);
+  };
+
+  const handleSaveCredential = async (platform: string) => {
+    setSavingCredential(platform);
+    try {
+      const data = getCredentialData(platform);
+      await fetchApi(`/platform-credentials/${platform}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          credentials: data.credentials,
+          label: data.label,
+          isActive: data.isActive,
+        }),
+      });
+      toast.success(`${PLATFORM_DISPLAY_NAMES[platform as Platform] || platform} credentials saved`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save credentials');
+    } finally {
+      setSavingCredential(null);
+    }
+  };
+
+  const handleDeleteCredential = async (platform: string) => {
+    setDeletingCredential(platform);
+    try {
+      await fetchApi(`/platform-credentials/${platform}`, {
+        method: 'DELETE',
+      });
+      setCredentialValues((prev) => {
+        const next = { ...prev };
+        delete next[platform];
+        return next;
+      });
+      toast.success(`${PLATFORM_DISPLAY_NAMES[platform as Platform] || platform} credentials removed`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete credentials');
+    } finally {
+      setDeletingCredential(null);
+    }
+  };
+
+  const handleTestCredential = async (platform: string) => {
+    setTestingCredential(platform);
+    try {
+      await fetchApi(`/platform-credentials/${platform}/test`, {
+        method: 'POST',
+      });
+      toast.success(`${PLATFORM_DISPLAY_NAMES[platform as Platform] || platform} connection successful`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Connection test failed');
+    } finally {
+      setTestingCredential(null);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -344,6 +587,159 @@ export function SettingsPage() {
             </div>
           </CardBody>
         </Card>
+      )}
+
+      {/* Credentials Tab */}
+      {activeTab === 'credentials' && (
+        <div className="space-y-5">
+          <Card>
+            <CardHeader>Platform Credentials</CardHeader>
+            <CardBody className="space-y-4">
+              <p className="text-sm text-text-muted">
+                Configure your own OAuth or API credentials for each social media
+                platform. This allows you to use your own developer apps for
+                publishing and analytics.
+              </p>
+              <a
+                href="/integrations/guide"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                View setup guides for all platforms
+              </a>
+            </CardBody>
+          </Card>
+
+          <div className="space-y-3">
+            {ALL_PLATFORMS.map((platform) => {
+              const fields = PLATFORM_CREDENTIAL_FIELDS[platform] || [];
+              const isExpanded = expandedPlatform === platform;
+              const configured = isConfigured(platform);
+              const data = getCredentialData(platform);
+              const color = PLATFORM_ICON_COLORS[platform] || '#6B7280';
+              const displayName = PLATFORM_DISPLAY_NAMES[platform] || platform;
+              const abbr = getPlatformAbbreviation(platform);
+
+              return (
+                <Card key={platform}>
+                  <div
+                    className="flex cursor-pointer items-center justify-between px-5 py-4"
+                    onClick={() =>
+                      setExpandedPlatform(isExpanded ? null : platform)
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold text-white"
+                        style={{ backgroundColor: color }}
+                      >
+                        {abbr}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">
+                          {displayName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {configured ? (
+                        <Badge variant="approved">Configured</Badge>
+                      ) : (
+                        <Badge variant="default">Not configured</Badge>
+                      )}
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-text-muted" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-text-muted" />
+                      )}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <CardBody className="space-y-4 border-t border-gray-50">
+                      {fields.map((field) => (
+                        <Input
+                          key={field.key}
+                          label={field.label}
+                          type={field.type}
+                          placeholder={field.placeholder}
+                          value={data.credentials[field.key] || ''}
+                          onChange={(e) =>
+                            updateCredentialField(platform, field.key, e.target.value)
+                          }
+                        />
+                      ))}
+
+                      <Input
+                        label="Label (optional)"
+                        type="text"
+                        placeholder="A friendly name for this credential set"
+                        value={data.label}
+                        onChange={(e) => updateCredentialLabel(platform, e.target.value)}
+                      />
+
+                      <div className="flex items-center justify-between rounded-lg border border-gray-100 p-4">
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">
+                            Active
+                          </p>
+                          <p className="mt-0.5 text-xs text-text-muted">
+                            Enable or disable these credentials
+                          </p>
+                        </div>
+                        <button
+                          onClick={() =>
+                            updateCredentialActive(platform, !data.isActive)
+                          }
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            data.isActive ? 'bg-brand-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              data.isActive ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={<Zap className="h-4 w-4" />}
+                          onClick={() => handleTestCredential(platform)}
+                          loading={testingCredential === platform}
+                        >
+                          Test Connection
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            icon={<Trash2 className="h-4 w-4" />}
+                            onClick={() => handleDeleteCredential(platform)}
+                            loading={deletingCredential === platform}
+                          >
+                            Delete
+                          </Button>
+                          <Button
+                            size="sm"
+                            icon={<Save className="h-4 w-4" />}
+                            onClick={() => handleSaveCredential(platform)}
+                            loading={savingCredential === platform}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    </CardBody>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );

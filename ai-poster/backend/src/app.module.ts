@@ -14,6 +14,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { PlatformAdaptersModule } from './modules/platform-adapters/platform-adapters.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { PlatformCredentialsModule } from './modules/platform-credentials/platform-credentials.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     IntegrationsModule,
     PlatformAdaptersModule,
     WebhooksModule,
+    PlatformCredentialsModule,
   ],
 })
 export class AppModule {}
