@@ -8,8 +8,10 @@
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "noEmit": true,
-    "strict": true
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "strict": true,
+    "types": ["node"]
   },
   "include": ["vite.config.ts"]
 }
