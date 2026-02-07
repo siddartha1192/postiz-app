@@ -35,4 +35,4 @@ RUN mkdir -p /app/uploads
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["node", "backend/dist/main"]
+CMD ["node", "backend/dist/backend/src/main"]

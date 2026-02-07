@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "start": "node dist/main",
-    "start:prod": "node dist/main"
+    "start": "node dist/worker/src/main",
+    "start:prod": "node dist/worker/src/main"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
