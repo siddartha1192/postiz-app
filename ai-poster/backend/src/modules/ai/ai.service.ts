@@ -120,8 +120,8 @@ export class AiService {
         quality: 'hd',
       });
 
-      const imageUrl = response.data[0]?.url;
-      const revisedPrompt = response.data[0]?.revised_prompt;
+      const imageUrl = response.data?.[0]?.url;
+      const revisedPrompt = response.data?.[0]?.revised_prompt;
 
       return {
         imageUrl,

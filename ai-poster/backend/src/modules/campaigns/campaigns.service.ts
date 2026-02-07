@@ -320,7 +320,7 @@ export class CampaignsService {
       throw new NotFoundException('Campaign not found');
     }
 
-    const created = [];
+    const created: any[] = [];
 
     // Add media-based assets
     if (data.mediaIds && data.mediaIds.length > 0) {
@@ -371,7 +371,7 @@ export class CampaignsService {
     }
 
     // Mark assets as processed (actual AI processing would be done via a queue/worker)
-    const processed = [];
+    const processed: any[] = [];
     for (const asset of unprocessedAssets) {
       const updated = await this.prisma.campaignAsset.update({
         where: { id: asset.id },
