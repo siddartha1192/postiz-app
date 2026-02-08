@@ -34,12 +34,12 @@ const OAUTH_CONFIG: Record<
     scopes: 'r_organization_social w_organization_social rw_organization_admin',
   },
   FACEBOOK: {
-    authorizeUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
-    scopes: 'pages_manage_posts,pages_read_engagement',
+    authorizeUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
+    scopes: 'pages_show_list,pages_manage_posts,pages_read_engagement,pages_read_user_content',
   },
   INSTAGRAM: {
-    authorizeUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
-    scopes: 'instagram_basic,instagram_content_publish',
+    authorizeUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
+    scopes: 'instagram_basic,instagram_content_publish,pages_show_list',
   },
   YOUTUBE: {
     authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -203,8 +203,16 @@ export class IntegrationsService {
       state: organizationId,
     });
 
+    const oauthUrl = `${config.authorizeUrl}?${params.toString()}`;
+
+    this.logger.log(`OAuth URL for ${normalizedPlatform}:`);
+    this.logger.log(`  client_id: ${clientId}`);
+    this.logger.log(`  redirect_uri: ${redirectUri}`);
+    this.logger.log(`  scopes: ${config.scopes}`);
+    this.logger.log(`  Full URL: ${oauthUrl}`);
+
     return {
-      url: `${config.authorizeUrl}?${params.toString()}`,
+      url: oauthUrl,
       platform: normalizedPlatform,
     };
   }
@@ -223,7 +231,7 @@ export class IntegrationsService {
       case 'FACEBOOK':
       case 'INSTAGRAM': {
         // Exchange code for short-lived token
-        const tokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
+        const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
         tokenUrl.searchParams.set('client_id', clientId);
         tokenUrl.searchParams.set('client_secret', clientSecret);
         tokenUrl.searchParams.set('redirect_uri', redirectUri);
@@ -240,7 +248,7 @@ export class IntegrationsService {
         }
 
         // Exchange short-lived token for long-lived token
-        const longTokenUrl = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
+        const longTokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
         longTokenUrl.searchParams.set('grant_type', 'fb_exchange_token');
         longTokenUrl.searchParams.set('client_id', clientId);
         longTokenUrl.searchParams.set('client_secret', clientSecret);
@@ -254,7 +262,7 @@ export class IntegrationsService {
 
         // Get user profile
         const meRes = await fetch(
-          `https://graph.facebook.com/v18.0/me?fields=id,name,picture&access_token=${accessToken}`,
+          `https://graph.facebook.com/v21.0/me?fields=id,name,picture&access_token=${accessToken}`,
         );
         const meData = await meRes.json() as any;
 

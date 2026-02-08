@@ -44,6 +44,33 @@ export class IntegrationsController {
     return { authUrl: result.url };
   }
 
+  /**
+   * Debug endpoint — returns the exact OAuth URL and redirect_uri
+   * so you can verify what needs to be configured in the platform's developer console.
+   */
+  @Get('debug-oauth/:platform')
+  @UseGuards(JwtAuthGuard)
+  async debugOAuth(
+    @CurrentUser() user: AuthUser,
+    @Param('platform') platform: string,
+  ) {
+    const result = await this.integrationsService.getOAuthUrl(user.organizationId, platform, user.id);
+    const url = new URL(result.url);
+    return {
+      platform: result.platform,
+      fullOAuthUrl: result.url,
+      redirectUri: url.searchParams.get('redirect_uri'),
+      clientId: url.searchParams.get('client_id'),
+      scopes: url.searchParams.get('scope'),
+      instructions: {
+        step1: `Add "${new URL(url.searchParams.get('redirect_uri')!).hostname}" to your Facebook App > Settings > Basic > App Domains`,
+        step2: `Add "${url.searchParams.get('redirect_uri')}" to Facebook Login > Settings > Valid OAuth Redirect URIs`,
+        step3: 'Make sure Facebook Login product is added to your app',
+        step4: 'If app is in Development mode, add your Facebook account under App Roles > Roles',
+      },
+    };
+  }
+
   @Post('connect')
   @UseGuards(JwtAuthGuard)
   async connect(
